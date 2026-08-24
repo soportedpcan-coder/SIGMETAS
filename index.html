@@ -59,6 +59,17 @@ header.top .status{font-size:12px;color:#b9c6d0}header.top .status b{color:#fff}
 .field select[multiple] option{padding:3px 6px;border-radius:4px}
 .field select:focus{outline:2px solid var(--amber-soft);border-color:var(--amber)}
 .field .mini{font-size:10px;color:var(--slate);margin-top:3px}
+.barfilter{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.barfilter .bfrow{display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-bottom:1px solid var(--line);transition:.12s}
+.barfilter .bfrow:last-child{border-bottom:0}
+.barfilter .bfrow:hover{background:#faf6ec}
+.barfilter .bfrow.sel{background:var(--amber-soft)}
+.barfilter .bfchk{width:12px;height:12px;border:2px solid var(--line);border-radius:4px;flex:none}
+.barfilter .bfrow.sel .bfchk{background:var(--amber);border-color:var(--amber)}
+.barfilter .bflab{flex:none;width:74px;font-weight:700;font-size:11.5px;color:var(--ink)}
+.barfilter .bftrack{flex:1;height:7px;background:#eee;border-radius:5px;overflow:hidden;min-width:20px}
+.barfilter .bffill{height:100%;border-radius:5px}
+.barfilter .bfval{flex:none;text-align:right;font-size:10.5px;color:var(--slate);white-space:nowrap}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:14px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
 .kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--slate);font-weight:700}
@@ -106,6 +117,8 @@ table.summary tr.tot td{background:#eef4f7;font-weight:800;border-top:2px solid 
 .tnode .tmeta{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);white-space:nowrap;font-size:12px}
 .tnode .tval{font-variant-numeric:tabular-nums;color:var(--slate);white-space:nowrap;font-size:11px;min-width:96px;text-align:right}
 .tnode .tpct{font-size:10px;color:var(--slate);min-width:42px;text-align:right}
+.ttheadrow{display:flex;align-items:center;gap:10px;padding:4px 12px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);font-weight:700;border-bottom:1px solid var(--line);margin-bottom:4px}
+.ttheadrow .tbar{width:120px}
 .tchildren{margin-left:20px;padding-left:14px;border-left:2px solid var(--line);overflow:hidden}
 .tnode:not(.open)>.tchildren{display:none}
 .tleaf .trow{cursor:default}.tleaf .trow:hover{background:transparent;border-color:transparent}
@@ -178,6 +191,8 @@ Chart.defaults.set('plugins.datalabels',{display:false});
 const S={format:null,rows:[],charts:{},filters:{},multi:{},incNoEsp:true};
 const INK='#0d2231',AMBER='#c9962f',TEAL='#2f8f83',CORAL='#c25a4a',SLATE='#5b6b78',GREEN='#2f8f6b',VIOLET='#7a5a8a';
 const PAL=['#0d2231','#c9962f','#2f8f83','#c25a4a','#5b6b78','#8a6d3b','#3f7fa3','#a0522d','#6b8e6b','#b5843a','#4a6572','#9c6b4f','#7a5a8a','#b5643a'];
+const EST_ORDER=['EC I','EC II','EC III','EC IV','No especificado'];
+const ESTADIO_COLOR={'EC I':'#7a5a8a','EC II':'#2f8f83','EC III':'#c9962f','EC IV':'#c25a4a','No especificado':'#bbb'};
 const fmt=n=>(n==null||isNaN(n))?'0':Number(Math.round(n)).toLocaleString('es-PE');
 const fmtK=n=>{n=Number(n)||0;const s=n<0?'-':'';n=Math.abs(n);if(n>=1e6)return s+(n/1e6).toFixed(1)+'M';if(n>=1e3)return s+(n/1e3).toFixed(0)+'k';return s+fmt(n);};
 const fmtS=n=>'S/ '+fmt(n);
@@ -350,7 +365,7 @@ function optionsFor(def){
   if(def.arr){const set=new Set();S.rows.forEach(r=>(r[def.k]||[]).forEach(v=>set.add(v)));vals=[...set];}
   else vals=[...new Set(S.rows.map(r=>r[def.k]).filter(x=>x!==''&&x!=null))];
   // orden: estadíos en orden clínico
-  if(def.k==='estadios')vals.sort((a,b)=>['EC I','EC II','EC III','EC IV','No especificado'].indexOf(a)-['EC I','EC II','EC III','EC IV','No especificado'].indexOf(b));
+  if(def.k==='estadios')vals.sort((a,b)=>EST_ORDER.indexOf(a)-EST_ORDER.indexOf(b));
   else vals.sort((a,b)=>String(a).localeCompare(String(b),'es'));
   return vals;
 }
@@ -359,7 +374,12 @@ function buildFilters(){
   FILTERS.forEach(def=>{
     const vals=optionsFor(def);
     const div=document.createElement('div');div.className='field';
-    if(def.multi){
+    if(def.k==='estadios'){
+      div.innerHTML='<label>'+def.l+(def.first?' ★':'')+'</label><select id="f_'+def.k+'" multiple style="display:none">'+
+        vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+shortLbl(v,34)+'</option>').join('')+'</select>'+
+        '<div class="barfilter" id="bf_estadios"></div>'+
+        '<div class="mini">Clic para filtrar por estadío · varios = OR · vacío = todos</div>';
+    }else if(def.multi){
       div.innerHTML='<label>'+def.l+(def.first?' ★':'')+'</label><select id="f_'+def.k+'" multiple onchange="applyFilters()">'+
         vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+shortLbl(v,34)+'</option>').join('')+'</select>'+
         '<div class="mini">Ctrl/Cmd para elegir varios · vacío = todos</div>';
@@ -384,6 +404,36 @@ function getFilterVals(){
   S.filters=f;S.multi=multi;return{f,multi};
 }
 function clearFilters(){FILTERS.forEach(d=>{const el=document.getElementById('f_'+d.k);if(el){if(d.multi)[...el.options].forEach(o=>o.selected=false);else el.value='';}});const inc=document.getElementById('f_incNoEsp');if(inc)inc.checked=true;applyFilters();}
+/* ---------- filtro visual de Estadío Clínico (barras) ---------- */
+function renderEstadioFilter(){
+  const host=document.getElementById('bf_estadios'),sel=document.getElementById('f_estadios');
+  if(!host||!sel)return;
+  const{f,multi}=getFilterVals();
+  const otherMulti={...multi,estadios:[]};
+  const rows=S.rows.filter(r=>r.esCancer&&rowMatches(r,f,otherMulti));
+  const m={};EST_ORDER.forEach(e=>m[e]={meta:0,val:0});
+  rows.forEach(r=>{const arr=(r.estadios&&r.estadios.length)?r.estadios:['No especificado'];const n=arr.length;
+    arr.forEach(e=>{if(!m[e])m[e]={meta:0,val:0};m[e].meta+=(Number(r.metaDg)||0)/n;m[e].val+=(Number(r.valor)||0)/n;});});
+  const total=Object.values(m).reduce((s,x)=>s+x.meta,0)||1;
+  const selected=new Set([...sel.selectedOptions].map(o=>o.value));
+  host.innerHTML=EST_ORDER.filter(e=>m[e].meta>0||selected.has(e)).map(e=>{
+    const pct=m[e].meta/total*100;
+    return '<div class="bfrow'+(selected.has(e)?' sel':'')+'" data-val="'+e+'">'+
+      '<span class="bfchk"></span>'+
+      '<span class="bflab">'+e+'</span>'+
+      '<span class="bftrack"><span class="bffill" style="width:'+Math.max(3,pct)+'%;background:'+(ESTADIO_COLOR[e]||'#bbb')+'"></span></span>'+
+      '<span class="bfval">'+pct.toFixed(0)+'% · '+fmt(m[e].meta)+' · S/ '+fmtK(m[e].val)+'</span>'+
+    '</div>';
+  }).join('')||'<div class="tempty">Sin datos de cáncer con los filtros actuales</div>';
+  host.querySelectorAll('.bfrow').forEach(row=>{
+    row.addEventListener('click',()=>{
+      const v=row.getAttribute('data-val');
+      const opt=[...sel.options].find(o=>o.value===v);
+      if(opt)opt.selected=!opt.selected;
+      applyFilters();
+    });
+  });
+}
 function rowMatches(r,f,multi){
   for(const k in f){if(f[k]&&r[k]!==f[k])return false;}
   for(const k in multi){const sel=multi[k];if(!sel.length)continue;
@@ -401,6 +451,7 @@ function applyFilters(){
     const shared=r=>(!f.estrategia||r.estrategia===f.estrategia)&&(!f.tipo||r.tipo===f.tipo)&&(!f.grp||r.grp===f.grp)&&(!f.dependencia||r.dependencia===f.dependencia);
     S.distF=(S.dist||[]).filter(shared);S.analF=(S.anal||[]).filter(shared);
   }
+  renderEstadioFilter();
   renderAll();
 }
 function sumBy(rows,key,vk,topN){vk=vk||'meta';const m={};rows.forEach(r=>{const k=r[key]||'(sin dato)';m[k]=(m[k]||0)+(Number(r[vk])||0);});
@@ -455,8 +506,8 @@ const DG_HTML=`
   <div class="grid" style="margin-top:14px">
     <div class="card col-6"><h3>Meta por Tipo de Cáncer</h3><div class="csub">Filtrable (selección múltiple)</div><div class="cbody"><canvas id="chCanTipo"></canvas></div></div>
     <div class="card col-6"><h3>Meta por Fase</h3><div class="csub">Diagnóstico · Tratamiento · Tamizaje · Prevención</div><div class="cbody"><canvas id="chCanFase"></canvas></div></div>
-    <div class="card col-6"><h3>Meta por Estadío Clínico</h3><div class="csub">EC I–IV · repartida si la fila cubre varios estadíos</div><div class="cbody"><canvas id="chCanEstadio"></canvas></div></div>
-    <div class="card col-6"><h3>Meta por Esquema de Tratamiento (Top 12)</h3><div class="csub">Líneas, fases y protocolos por fármacos</div><div class="cbody"><canvas id="chCanEsquema"></canvas></div></div>
+    <div class="card col-12"><h3>Meta por Estadío Clínico</h3><div class="csub">EC I–IV · repartida si la fila cubre varios estadíos</div><div class="cbody" style="min-height:340px"><canvas id="chCanEstadio"></canvas></div></div>
+    <div class="card col-12"><h3>Meta por Esquema de Tratamiento (Top 12)</h3><div class="csub">Líneas, fases y protocolos por fármacos</div><div class="cbody" style="min-height:340px"><canvas id="chCanEsquema"></canvas></div></div>
     <div class="card col-12"><h3>Comparativo: Estadío × Tipo de Cáncer</h3><div class="csub">Barras apiladas — composición de estadíos por cada tipo (Top 8 tipos)</div><div class="cbody" style="min-height:340px"><canvas id="chCanCross"></canvas></div></div>
   </div>
   <div class="sechead" style="margin-top:26px"><span class="n">3.1</span><h2>Árbol de decisión: Tipo → Estadío → Esquema</h2><span class="line"></span></div>
@@ -582,7 +633,6 @@ function buildTree(rows){
   });
   return tree;
 }
-const EST_ORDER=['EC I','EC II','EC III','EC IV','No especificado'];
 function sortEntries(obj,isEst){
   return Object.entries(obj).sort((a,b)=>{
     if(isEst){const ia=EST_ORDER.indexOf(a[0]),ib=EST_ORDER.indexOf(b[0]);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);}
@@ -595,8 +645,8 @@ function renderTree(){
   if(!can.length){host.innerHTML='<div class="tempty">No hay filas de cáncer con los filtros actuales.</div>';return;}
   const tree=buildTree(can);
   const rootMeta=tree.meta||1;
-  let html='';
-  const colorFor={'EC I':VIOLET,'EC II':TEAL,'EC III':AMBER,'EC IV':CORAL,'No especificado':'#bbb'};
+  let html='<div class="ttheadrow"><span class="tw"></span><span class="tlab">Categoría</span><span class="tbar"></span><span class="tpct">% del total</span><span class="tmeta">Meta DGIESP</span><span class="tval">Valor S/.</span></div>';
+  const colorFor=ESTADIO_COLOR;
   sortEntries(tree.ch,false).forEach(([tipo,tv])=>{
     const tid='t_'+cssId(tipo);
     const openT=TREE_STATE[tid]!==false;
@@ -675,8 +725,7 @@ function renderDgiesp(){
   barH('chCanEsquema',topN(sumByArr(can,'esquemas','metaDg'),12),AMBER);
   // cruce estadío x tipo (apiladas)
   const tipos=sumBy(can,'tipoCancer','metaDg',8).labels;
-  const estOrder=['EC I','EC II','EC III','EC IV','No especificado'];
-  const series=estOrder.map((e,i)=>({label:e,color:[VIOLET,TEAL,AMBER,CORAL,'#bbb'][i],data:tipos.map(tp=>{
+  const series=EST_ORDER.map(e=>({label:e,color:ESTADIO_COLOR[e],data:tipos.map(tp=>{
     return can.filter(r=>r.tipoCancer===tp).reduce((s,r)=>{const arr=r.estadios||[];if(arr.includes(e))return s+r.metaDg/arr.length;return s;},0);})}));
   stackedV('chCanCross',tipos,series);
   renderTree();
