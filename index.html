@@ -53,6 +53,8 @@ header.top .status{font-size:12px;color:#b9c6d0}header.top .status b{color:#fff}
 .filters .fhead h3{font-size:13px;text-transform:uppercase;letter-spacing:.1em}
 .filters .fhead .clear{margin-left:auto;font-size:12px;color:var(--coral);background:none;border:0}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.fgrid-wide{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:12px}
+.fgrid-wide:empty{display:none;margin-top:0}
 .field label{display:block;font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .field select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:13px;color:var(--ink)}
 .field select[multiple]{height:110px;padding:4px}
@@ -66,10 +68,7 @@ header.top .status{font-size:12px;color:#b9c6d0}header.top .status b{color:#fff}
 .barfilter .bfrow.sel{background:var(--amber-soft)}
 .barfilter .bfchk{width:12px;height:12px;border:2px solid var(--line);border-radius:4px;flex:none}
 .barfilter .bfrow.sel .bfchk{background:var(--amber);border-color:var(--amber)}
-.barfilter .bflab{flex:none;width:74px;font-weight:700;font-size:11.5px;color:var(--ink)}
-.barfilter .bftrack{flex:1;height:7px;background:#eee;border-radius:5px;overflow:hidden;min-width:20px}
-.barfilter .bffill{height:100%;border-radius:5px}
-.barfilter .bfval{flex:none;text-align:right;font-size:10.5px;color:var(--slate);white-space:nowrap}
+.barfilter .bflab{flex:1;font-weight:600;font-size:12.5px;color:var(--ink)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:14px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
 .kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--slate);font-weight:700}
@@ -113,12 +112,14 @@ table.summary tr.tot td{background:#eef4f7;font-weight:800;border-top:2px solid 
 .tnode .tw{width:16px;text-align:center;color:var(--slate);font-size:11px;flex:none;transition:transform .15s}
 .tnode.open>.trow .tw{transform:rotate(90deg)}
 .tnode .tlab{flex:1;font-weight:600}
-.tnode .tbar{height:8px;border-radius:5px;flex:none;min-width:4px}
+.tnode .tbar{width:120px;height:8px;border-radius:5px;flex:none;background:#eee;overflow:hidden}
+.tnode .tbarfill{display:block;height:100%;border-radius:5px}
 .tnode .tmeta{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);white-space:nowrap;font-size:12px}
 .tnode .tval{font-variant-numeric:tabular-nums;color:var(--slate);white-space:nowrap;font-size:11px;min-width:96px;text-align:right}
 .tnode .tpct{font-size:10px;color:var(--slate);min-width:42px;text-align:right}
 .ttheadrow{display:flex;align-items:center;gap:10px;padding:4px 12px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);font-weight:700;border-bottom:1px solid var(--line);margin-bottom:4px}
-.ttheadrow .tbar{width:120px}
+.ttheadrow .tbar{width:120px;background:transparent}
+.ttheadrow .tw{width:16px;flex:none}
 .tchildren{margin-left:20px;padding-left:14px;border-left:2px solid var(--line);overflow:hidden}
 .tnode:not(.open)>.tchildren{display:none}
 .tleaf .trow{cursor:default}.tleaf .trow:hover{background:transparent;border-color:transparent}
@@ -179,6 +180,7 @@ footer{padding:26px;text-align:center;color:var(--slate);font-size:12px}
   <div class="filters">
     <div class="fhead"><span class="dot"></span><h3>Filtros</h3><button class="clear" onclick="clearFilters()">Limpiar todos &#10005;</button></div>
     <div class="fgrid" id="filterGrid"></div>
+    <div class="fgrid fgrid-wide" id="filterGridCancer"></div>
   </div>
   <div id="viewConsolidado"></div>
   <div id="viewDgiesp"></div>
@@ -353,9 +355,9 @@ function buildLayout(){
     document.getElementById('repTitle').textContent='Reporte · METAS DGIESP 2027';
     FILTERS=[{k:'programa',l:'Programa Presupuestal',first:true},{k:'unidad',l:'Unidad de Medida'},
       {k:'fase',l:'Fase (cáncer)',cancer:true},
-      {k:'tipoCancer',l:'Tipo de Cáncer',cancer:true,multi:true},
-      {k:'estadios',l:'Estadío Clínico',cancer:true,multi:true,arr:true},
-      {k:'esquemas',l:'Esquema de Tratamiento',cancer:true,multi:true,arr:true}];
+      {k:'tipoCancer',l:'Tipo de Cáncer',cancer:true,multi:true,row2:true},
+      {k:'estadios',l:'Estadío Clínico',cancer:true,multi:true,arr:true,row2:true},
+      {k:'esquemas',l:'Esquema de Tratamiento',cancer:true,multi:true,arr:true,row2:true}];
     document.getElementById('viewDgiesp').innerHTML=DG_HTML;
   }
   buildFilters();applyFilters();
@@ -364,15 +366,15 @@ function optionsFor(def){
   let vals;
   if(def.arr){const set=new Set();S.rows.forEach(r=>(r[def.k]||[]).forEach(v=>set.add(v)));vals=[...set];}
   else vals=[...new Set(S.rows.map(r=>r[def.k]).filter(x=>x!==''&&x!=null))];
-  // orden: estadíos en orden clínico
-  if(def.k==='estadios')vals.sort((a,b)=>EST_ORDER.indexOf(a)-EST_ORDER.indexOf(b));
-  else vals.sort((a,b)=>String(a).localeCompare(String(b),'es'));
+  vals.sort((a,b)=>String(a).localeCompare(String(b),'es'));
   return vals;
 }
 function buildFilters(){
-  const g=document.getElementById('filterGrid');g.innerHTML='';S.multi={};
+  const g=document.getElementById('filterGrid');g.innerHTML='';
+  const g2=document.getElementById('filterGridCancer');if(g2)g2.innerHTML='';
+  S.multi={};
   FILTERS.forEach(def=>{
-    const vals=optionsFor(def);
+    const vals=def.k==='estadios'?EST_ORDER:optionsFor(def);
     const div=document.createElement('div');div.className='field';
     if(def.k==='estadios'){
       div.innerHTML='<label>'+def.l+(def.first?' ★':'')+'</label><select id="f_'+def.k+'" multiple style="display:none">'+
@@ -387,7 +389,7 @@ function buildFilters(){
       div.innerHTML='<label>'+def.l+(def.first?' ★':'')+'</label><select id="f_'+def.k+'" onchange="applyFilters()"><option value="">Todos ('+vals.length+')</option>'+
         vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+shortLbl(v,44)+'</option>').join('')+'</select>';
     }
-    g.appendChild(div);
+    (def.row2&&g2?g2:g).appendChild(div);
   });
   if(S.format==='dgiesp'){
     const div=document.createElement('div');div.className='field';
@@ -404,27 +406,17 @@ function getFilterVals(){
   S.filters=f;S.multi=multi;return{f,multi};
 }
 function clearFilters(){FILTERS.forEach(d=>{const el=document.getElementById('f_'+d.k);if(el){if(d.multi)[...el.options].forEach(o=>o.selected=false);else el.value='';}});const inc=document.getElementById('f_incNoEsp');if(inc)inc.checked=true;applyFilters();}
-/* ---------- filtro visual de Estadío Clínico (barras) ---------- */
+/* ---------- filtro visual de Estadío Clínico ---------- */
 function renderEstadioFilter(){
   const host=document.getElementById('bf_estadios'),sel=document.getElementById('f_estadios');
   if(!host||!sel)return;
-  const{f,multi}=getFilterVals();
-  const otherMulti={...multi,estadios:[]};
-  const rows=S.rows.filter(r=>r.esCancer&&rowMatches(r,f,otherMulti));
-  const m={};EST_ORDER.forEach(e=>m[e]={meta:0,val:0});
-  rows.forEach(r=>{const arr=(r.estadios&&r.estadios.length)?r.estadios:['No especificado'];const n=arr.length;
-    arr.forEach(e=>{if(!m[e])m[e]={meta:0,val:0};m[e].meta+=(Number(r.metaDg)||0)/n;m[e].val+=(Number(r.valor)||0)/n;});});
-  const total=Object.values(m).reduce((s,x)=>s+x.meta,0)||1;
   const selected=new Set([...sel.selectedOptions].map(o=>o.value));
-  host.innerHTML=EST_ORDER.filter(e=>m[e].meta>0||selected.has(e)).map(e=>{
-    const pct=m[e].meta/total*100;
-    return '<div class="bfrow'+(selected.has(e)?' sel':'')+'" data-val="'+e+'">'+
+  host.innerHTML=EST_ORDER.map(e=>
+    '<div class="bfrow'+(selected.has(e)?' sel':'')+'" data-val="'+e+'">'+
       '<span class="bfchk"></span>'+
       '<span class="bflab">'+e+'</span>'+
-      '<span class="bftrack"><span class="bffill" style="width:'+Math.max(3,pct)+'%;background:'+(ESTADIO_COLOR[e]||'#bbb')+'"></span></span>'+
-      '<span class="bfval">'+pct.toFixed(0)+'% · '+fmt(m[e].meta)+' · S/ '+fmtK(m[e].val)+'</span>'+
-    '</div>';
-  }).join('')||'<div class="tempty">Sin datos de cáncer con los filtros actuales</div>';
+    '</div>'
+  ).join('');
   host.querySelectorAll('.bfrow').forEach(row=>{
     row.addEventListener('click',()=>{
       const v=row.getAttribute('data-val');
@@ -678,11 +670,11 @@ function renderTree(){
   });
 }
 function nodeRow(caret,label,meta,val,pct,color,leaf){
-  const w=Math.max(4,Math.round(pct*120));
+  const w=Math.max(3,Math.min(100,Math.round(pct*100)));
   return '<div class="trow">'+
     '<span class="tw">'+(leaf?'•':'▸')+'</span>'+
     '<span class="tlab">'+shortLbl(label,46)+'</span>'+
-    '<span class="tbar" style="width:'+w+'px;background:'+color+'"></span>'+
+    '<span class="tbar"><span class="tbarfill" style="width:'+w+'%;background:'+color+'"></span></span>'+
     '<span class="tpct">'+(pct*100).toFixed(0)+'%</span>'+
     '<span class="tmeta">'+fmt(meta)+'</span>'+
     '<span class="tval">S/ '+fmtK(val)+'</span>'+
