@@ -450,6 +450,9 @@ function sumBy(rows,key,vk,topN){vk=vk||'meta';const m={};rows.forEach(r=>{const
   let a=Object.entries(m).filter(x=>x[1]!==0).sort((x,y)=>y[1]-x[1]);if(topN)a=a.slice(0,topN);return{labels:a.map(x=>x[0]),values:a.map(x=>x[1])};}
 function sumByArr(rows,arrKey,vk){vk=vk||'meta';const m={};rows.forEach(r=>{const arr=r[arrKey]||[];const share=(Number(r[vk])||0)/(arr.length||1);arr.forEach(k=>m[k]=(m[k]||0)+share);});
   let a=Object.entries(m).filter(x=>x[1]!==0).sort((x,y)=>y[1]-x[1]);return{labels:a.map(x=>x[0]),values:a.map(x=>x[1])};}
+function restrictToSel(data,sel){if(!sel||!sel.length)return data;
+  const keep=data.labels.map((l,i)=>i).filter(i=>sel.includes(data.labels[i]));
+  return{labels:keep.map(i=>data.labels[i]),values:keep.map(i=>data.values[i])};}
 /* ---------- plantillas de vista ---------- */
 const CONS_HTML=`
   <div class="kpis" id="kpiRow"></div><div class="kpis" id="kpiRow2"></div>
@@ -607,10 +610,15 @@ function renderTableCons(rows){const map={};rows.forEach(r=>{const k=r.dependenc
 let TREE_STATE={};
 function buildTree(rows){
   const tree={meta:0,val:0,ch:{}};
+  const selEst=S.multi.estadios&&S.multi.estadios.length?S.multi.estadios:null;
+  const selEsq=S.multi.esquemas&&S.multi.esquemas.length?S.multi.esquemas:null;
   rows.forEach(r=>{
-    const ests=(r.estadios&&r.estadios.length)?r.estadios:['No especificado'];
-    const esqs=(r.esquemas&&r.esquemas.length)?r.esquemas:['No especificado'];
-    const nE=ests.length,nQ=esqs.length;
+    const estsFull=(r.estadios&&r.estadios.length)?r.estadios:['No especificado'];
+    const esqsFull=(r.esquemas&&r.esquemas.length)?r.esquemas:['No especificado'];
+    const ests=selEst?estsFull.filter(e=>selEst.includes(e)):estsFull;
+    const esqs=selEsq?esqsFull.filter(q=>selEsq.includes(q)):esqsFull;
+    if(!ests.length||!esqs.length)return;
+    const nE=estsFull.length,nQ=esqsFull.length;
     ests.forEach(e=>esqs.forEach(q=>{
       const t=r.tipoCancer||'OTRO';
       if(!tree.ch[t])tree.ch[t]={meta:0,val:0,ch:{}};
@@ -713,11 +721,12 @@ function renderDgiesp(){
   document.getElementById('cancerBox').style.opacity=can.length?'1':'0.4';
   barH('chCanTipo',sumBy(can,'tipoCancer','metaDg'),CORAL);
   donut('chCanFase',sumBy(can,'fase','metaDg'));
-  barH('chCanEstadio',sumByArr(can,'estadios','metaDg'),VIOLET);
-  barH('chCanEsquema',topN(sumByArr(can,'esquemas','metaDg'),12),AMBER);
+  barH('chCanEstadio',restrictToSel(sumByArr(can,'estadios','metaDg'),S.multi.estadios),VIOLET);
+  barH('chCanEsquema',topN(restrictToSel(sumByArr(can,'esquemas','metaDg'),S.multi.esquemas),12),AMBER);
   // cruce estadío x tipo (apiladas)
   const tipos=sumBy(can,'tipoCancer','metaDg',8).labels;
-  const series=EST_ORDER.map(e=>({label:e,color:ESTADIO_COLOR[e],data:tipos.map(tp=>{
+  const estOrderSel=(S.multi.estadios&&S.multi.estadios.length)?EST_ORDER.filter(e=>S.multi.estadios.includes(e)):EST_ORDER;
+  const series=estOrderSel.map(e=>({label:e,color:ESTADIO_COLOR[e],data:tipos.map(tp=>{
     return can.filter(r=>r.tipoCancer===tp).reduce((s,r)=>{const arr=r.estadios||[];if(arr.includes(e))return s+r.metaDg/arr.length;return s;},0);})}));
   stackedV('chCanCross',tipos,series);
   renderTree();
