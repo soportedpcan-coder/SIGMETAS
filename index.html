@@ -68,9 +68,10 @@
 
   /* right panel: consumo/proyeccion */
   .rp-empty{display:flex; align-items:center; justify-content:center; height:270px; color:var(--muted2); font-size:13px; text-align:center; padding:20px}
-  .compwrap{display:flex; flex-direction:column; gap:18px}
+  .compwrap{display:flex; flex-direction:column; gap:14px}
   .compblock{border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--panel2)}
   .comptitle{font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:8px}
+  .compdivider{margin:18px 0 4px; font-size:13px; font-weight:700; color:var(--ink); border-top:1px solid var(--line); padding-top:14px}
   .subtabs{display:flex; gap:6px; margin:2px 0 12px}
   .subtabs button{font:inherit; font-size:12px; font-weight:600; padding:6px 12px; border:1px solid var(--line); background:var(--panel2); border-radius:7px; cursor:pointer; color:var(--muted)}
   .subtabs button.on{background:var(--accent); color:#06222e; border-color:var(--accent)}
@@ -159,7 +160,17 @@
         <button data-v="proj" class="on">Proyección de agotamiento</button>
         <button data-v="cons">Consumo real</button>
       </div>
-      <div id="rpBody"><div class="rp-empty">Selecciona un ítem en la tabla de abajo para ver su proyección de agotamiento y su consumo.</div></div>
+      <div id="rpBody"></div>
+      <div id="rpComp">
+        <div class="compdivider" id="compDivider" style="display:none">Composición de productos</div>
+        <p class="hint" style="margin-top:0">Distribución de los ítems filtrados. Clic en un segmento o leyenda para filtrar.</p>
+        <div class="compwrap">
+          <div class="compblock"><div class="comptitle">Descripción del producto</div>
+            <div class="donutwrap"><div class="donut"><svg id="donutDP" viewBox="0 0 120 120"></svg></div><div class="legend" id="legDP"></div></div></div>
+          <div class="compblock"><div class="comptitle">Tipo de producto</div>
+            <div class="donutwrap"><div class="donut"><svg id="donutTPR" viewBox="0 0 120 120"></svg></div><div class="legend" id="legTPR"></div></div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -327,6 +338,7 @@ document.getElementById('rpTabs').addEventListener('click',function(e){var b=e.t
 function renderRightPanel(r){
   document.getElementById('rpName').textContent='· '+(r.p||'');
   document.getElementById('rpTabs').style.display='flex';
+  var dv=document.getElementById('compDivider'); if(dv)dv.style.display='block';
   var body=document.getElementById('rpBody');
   var svgId='rpChart';
   var chart = rpView==='proj' ? projSVG(r) : consSVG(r);
@@ -656,7 +668,8 @@ document.getElementById('file').addEventListener('change',function(ev){
     }).filter(function(x){return x.i!=='';});
     for(var k in FILT)FILT[k]=''; hideInd={}; selRow=null;
     document.getElementById('rpTabs').style.display='none';
-    document.getElementById('rpBody').innerHTML='<div class="rp-empty">Selecciona un ítem en la tabla para ver su detalle.</div>';
+    document.getElementById('rpBody').innerHTML='';
+    var dv0=document.getElementById('compDivider'); if(dv0)dv0.style.display='none';
     document.getElementById('rpName').textContent='';
     applyQtyMode();
     buildControls(); render();
@@ -666,20 +679,12 @@ document.getElementById('file').addEventListener('change',function(ev){
 
 /* ---- adapt UI to whether quantitative columns exist ---- */
 function applyQtyMode(){
-  var on = HAS_QTY;
-  if(!on){
+  // composition donuts are always visible. When there are no quantitative columns,
+  // there is no per-item projection, so hide the projection tabs.
+  if(!HAS_QTY){
     document.getElementById('rpTabs').style.display='none';
-    document.getElementById('rpName').textContent='';
-    // right panel becomes composition donuts (descripción / tipo de producto)
-    document.getElementById('rpTitle').innerHTML='Composición de productos';
-    document.getElementById('rpBody').innerHTML=
-      '<p class="hint" id="rpHint">Distribución de los ítems filtrados. Clic en un segmento o en la leyenda para filtrar el tablero.</p>'+
-      '<div class="compwrap">'+
-        '<div class="compblock"><div class="comptitle">Descripción del producto</div>'+
-          '<div class="donutwrap"><div class="donut"><svg id="donutDP" viewBox="0 0 120 120"></svg></div><div class="legend" id="legDP"></div></div></div>'+
-        '<div class="compblock"><div class="comptitle">Tipo de producto</div>'+
-          '<div class="donutwrap"><div class="donut"><svg id="donutTPR" viewBox="0 0 120 120"></svg></div><div class="legend" id="legTPR"></div></div></div>'+
-      '</div>';
+    document.getElementById('rpBody').innerHTML='';
+    var dv=document.getElementById('compDivider'); if(dv)dv.style.display='none';
   }
 }
 
@@ -721,7 +726,6 @@ function drawCompDonut(svgId,legId,counts,order,colorMap,filterKey){
   });
 }
 function renderComposition(rows){
-  if(HAS_QTY) return; // only in no-qty mode
   if(!document.getElementById('donutDP')) return;
   var dp={}, tpr={};
   rows.forEach(function(r){ dp[r.dp||'(sin dato)']=(dp[r.dp||'(sin dato)']||0)+1; tpr[r.tpr||'(sin dato)']=(tpr[r.tpr||'(sin dato)']||0)+1; });
