@@ -204,9 +204,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-var IND_ORDER=["Desabastecido","Substock","Normostock","Sobrestock","Sin_Consumo","Sin_Rotación"];
-var IND_LABEL={"Desabastecido":"Desabastecido","Substock":"Substock","Normostock":"Normostock","Sobrestock":"Sobrestock","Sin_Consumo":"Sin_Consumo","Sin_Rotación":"Sin_Rotación"};
-var IND_COLOR={"Desabastecido":"#ef4444","Substock":"#c4b5fd","Normostock":"#22c55e","Sobrestock":"#38bdf8","Sin_Consumo":"#8b5cf6","Sin_Rotación":"#f59e0b"};
+var IND_ORDER=["Desabastecido","Substock","Normostock","Sobrestock","Sin_Consumo","Sin_Rotación","Almacén","No_aplica"];
+var IND_LABEL={"Desabastecido":"Desabastecido","Substock":"Substock","Normostock":"Normostock","Sobrestock":"Sobrestock","Sin_Consumo":"Sin Consumo","Sin_Rotación":"Sin Rotación","Almacén":"Almacén","No_aplica":"No aplica"};
+var IND_COLOR={"Desabastecido":"#ef4444","Substock":"#c4b5fd","Normostock":"#22c55e","Sobrestock":"#38bdf8","Sin_Consumo":"#8b5cf6","Sin_Rotación":"#f59e0b","Almacén":"#64748b","No_aplica":"#475569"};
 function normalizeIndicator(r){
   if(!r) return r;
   var st = r.st==null?null:Number(r.st);
@@ -312,15 +312,16 @@ function renderKPIs(rows){
   var nMed=Object.keys(medSet).length, nIns=Object.keys(insSet).length;
   var k=document.getElementById('kpis');
   function card(cls,n,sub,label){return '<div class="kpi '+cls+'"><div class="n">'+n+'</div><div class="p">'+sub+'</div><div class="l">'+label+'</div></div>';}
+  var statusClass={Desabastecido:'crit',Substock:'warn',Normostock:'ok',Sobrestock:'over',
+    Sin_Consumo:'ins','Sin_Rotación':'ins','Almacén':'tot',No_aplica:'tot'};
   k.innerHTML=
-    card('tot',fint(tot),'&nbsp;','Ítems (producto × IPRESS)')+
+    card('tot',fint(tot),'&nbsp;','Registros (producto × IPRESS)')+
     card('med',fint(nMed),'productos únicos','Medicamentos')+
     card('ins',fint(nIns),'productos únicos','Insumos')+
     (HAS_QTY?card('crit',fint(crit),pct(crit,tot).toFixed(1)+'%','Riesgo agotamiento (≤3 m)'):'')+
-    card('crit',fint(m['Desabastecido']),pct(m['Desabastecido'],tot).toFixed(1)+'%','Desabastecido')+
-    card('warn',fint(m['Substock']),pct(m['Substock'],tot).toFixed(1)+'%','Substock')+
-    card('ok',fint(m['Normostock']),pct(m['Normostock'],tot).toFixed(1)+'%','Normostock')+
-    card('over',fint(m['Sobrestock']),pct(m['Sobrestock'],tot).toFixed(1)+'%','Sobrestock');
+    IND_ORDER.map(function(ind){
+      return card(statusClass[ind]||'tot',fint(m[ind]||0),pct(m[ind]||0,tot).toFixed(1)+'%',IND_LABEL[ind]||ind);
+    }).join('');
 }
 
 function renderDonut(rows){
@@ -340,7 +341,7 @@ function renderDonut(rows){
   var t1=document.createElementNS('http://www.w3.org/2000/svg','text');
   t1.setAttribute('x',60);t1.setAttribute('y',58);t1.setAttribute('text-anchor','middle');t1.setAttribute('font-size','19');t1.setAttribute('font-weight','700');t1.setAttribute('fill','#e6ecf2');t1.textContent=fint(totShown);svg.appendChild(t1);
   var t2=document.createElementNS('http://www.w3.org/2000/svg','text');
-  t2.setAttribute('x',60);t2.setAttribute('y',72);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','7');t2.setAttribute('fill','#8a99a8');t2.textContent='ítems';svg.appendChild(t2);
+  t2.setAttribute('x',60);t2.setAttribute('y',72);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','7');t2.setAttribute('fill','#8a99a8');t2.textContent='registros';svg.appendChild(t2);
   var lg=document.getElementById('donutlegend'); lg.innerHTML='';
   IND_ORDER.forEach(function(ind){var v=m[ind]||0; if(v===0&&!hideInd[ind])return;
     var el=document.createElement('div'); el.className='li'+(hideInd[ind]?' off':'');
