@@ -212,7 +212,44 @@ var IND_LABEL={'Desabastecido':'Desabastecido','Substock':'Substock','Normostock
 function gv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 var IND_COLOR={'Desabastecido':gv('--desab'),'Substock':gv('--sub'),'Normostock':gv('--normo'),'Sobrestock':gv('--sobre'),'Sin_Consumo':gv('--sincon'),'Sin_Rotación':gv('--sinrot'),'Almacén':gv('--alma'),'No_aplica':gv('--noap')};
 
-var DATA=RAW.slice();
+function toNumber(v){
+  if(v===null || v===undefined || v==='') return null;
+  if(typeof v==='number' && !isNaN(v)) return v;
+  if(typeof v==='string'){
+    var s=v.trim();
+    if(!s || s==='__' || s==='None' || s==='nan' || s==='NaN') return null;
+    s=s.replace(/\s+/g,'').replace(/\./g,'').replace(',', '.');
+    s=s.replace(/[^0-9.\-]/g,'');
+    if(!s || s==='-' || s==='.' || s==='-.') return null;
+    var n=parseFloat(s);
+    return isNaN(n)?null:n;
+  }
+  return null;
+}
+function normalizeIndicator(row){
+  var out = Object.assign({}, row || {});
+  var raw = (out.i || '').toString().trim();
+  if(raw === 'No_aplica' || raw === 'Almacén') return out;
+  var st = toNumber(out.st);
+  var cp = toNumber(out.cp);
+  var c12 = toNumber(out.c12);
+  var cma = toNumber(out.cma);
+  var req = toNumber(out.req);
+  if(st == null) return out;
+  if(st === 0){
+    if((cp == null || cp === 0) && (c12 == null || c12 === 0)) out.i='Sin_Rotación';
+    else if(c12 != null && c12 > 0 && (cma == null || cma === 0)) out.i='Sin_Consumo';
+    else out.i='Desabastecido';
+    return out;
+  }
+  if(cp != null && cp === 0 && (c12 == null || c12 === 0)) out.i='Sin_Rotación';
+  else if(req != null && req > 0 && st < req) out.i='Substock';
+  else if(cp != null && cp > 0 && st > 6 * cp) out.i='Sobrestock';
+  else if(c12 != null && c12 > 0 && cma != null && cma === 0) out.i='Sin_Consumo';
+  else out.i='Normostock';
+  return out;
+}
+var DATA=RAW.map(normalizeIndicator);
 var FILT={r:'',d:'',e:'',p:'',t:'',cat:'',s:'',i:'',ip:'',ie:'',dp:'',tpr:'',q:''};
 var sortKey='i', sortDir=1, curDim='d', dimView='stack', selRow=null, rpView='proj', hideInd={};
 var HAS_QTY=true; /* MAESTRO precargado incluye stock/CPMA; se recalcula al subir un archivo */
@@ -658,13 +695,13 @@ document.getElementById('file').addEventListener('change',function(ev){
       var st=nf(o['STOCK']); var cp=nf(o['CPMA_SIN_DECIMALES']); if(cp==null)cp=nf(o['CPMA']); if(cp!=null&&(cp<0||cp>1e6))cp=null;
       var md=nf(o['MED']); if(md!=null&&(md<0||md>=1000))md=(st!=null&&cp&&cp>0)?st/cp:null; else if(md==null&&st!=null&&cp&&cp>0)md=st/cp;
       var codn=nf(o['CODMED___s']);
-      return {r:t(o['MREG']),d:t(o['DIRESA']),e:t(o['IPRESS']),t:t(o['TIPO_REPORTANTE']),cat:t(o['CATEGORIA']),
+      return normalizeIndicator({r:t(o['MREG']),d:t(o['DIRESA']),e:t(o['IPRESS']),t:t(o['TIPO_REPORTANTE']),cat:t(o['CATEGORIA']),
         p:t(o['PRODUCTOS']),s:t(o['ESTRATEGIC.']),i:t(o['INDICADOR']),tp:t(o['TIPO_PROD.']),cod:codn!=null?(''+Math.round(codn)):'',
         ip:inf(o['INFANTIL _PRODUCTO']),ie:inf(o['INFANTIL_EJECUTORA']),
         dp:descProd(o),tpr:tipoProd(o),
         st:rn(st),cp:rn(cp),md:md!=null?Math.round(md*100)/100:null,c12:rn(nf(o['CONSUMO ACUM 12 meses'])),
         cma:rn(nf(o['CONSUMO MES ANTERIOR'])),sa:rn(nf(o['STOCK_MES_ANTERIOR'])),cu4:rn(nf(o['CU4M'])),
-        sar:rn(nf(o['STOCK ALMACENES REGION'])),pr:(function(x){return x==null?null:Math.round(x*100)/100;})(nf(o['PRECIO'])),req:rn(nf(o['Req_3M']))};
+        sar:rn(nf(o['STOCK ALMACENES REGION'])),pr:(function(x){return x==null?null:Math.round(x*100)/100;})(nf(o['PRECIO'])),req:rn(nf(o['Req_3M']))});
     }).filter(function(x){return x.i!=='';});
     for(var k in FILT)FILT[k]=''; hideInd={}; selRow=null;
     document.getElementById('rpTabs').style.display='none';
