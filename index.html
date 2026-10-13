@@ -49,9 +49,13 @@
   .kpi.med{border-left:4px solid #34d399} .kpi.med .n{color:#34d399}
   .kpi.ins{border-left:4px solid #22d3ee} .kpi.ins .n{color:#22d3ee}
 
-  .row2{display:grid; grid-template-columns:minmax(0,0.85fr) minmax(0,1.15fr); gap:18px; margin-bottom:20px}
+  .row2{display:grid; grid-template-columns:minmax(0,0.85fr) minmax(0,1.15fr); align-items:stretch; gap:18px; margin-bottom:20px}
   @media(max-width:900px){ .row2{grid-template-columns:1fr} }
-  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow)}
+  .panel{min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow)}
+  .row2>.panel:first-child{display:flex; flex-direction:column}
+  .row2>.panel:first-child .donutwrap{flex:1; align-content:center; justify-content:center}
+  .row2>.panel:first-child .donut{flex-basis:clamp(176px,20vw,230px)}
+  .donut svg{display:block; width:100%; height:auto}
   .panel h2{margin:0 0 3px; font-size:15.5px; font-weight:700}
   .panel h2 .accent{color:var(--muted); font-weight:500; font-size:13px}
   .panel .hint{font-size:11.5px; color:var(--muted2); margin:0 0 14px}
@@ -68,10 +72,11 @@
 
   /* right panel: consumo/proyeccion */
   .rp-empty{display:flex; align-items:center; justify-content:center; height:270px; color:var(--muted2); font-size:13px; text-align:center; padding:20px}
-  .compwrap{display:flex; flex-direction:column; gap:14px}
-  .compblock{border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--panel2)}
+  .consumption-scroll{max-height:420px; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:8px}
+  .consumption-scroll svg{display:block; width:100%; height:auto}
+  .compwrap{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+  .compblock{min-width:0; border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--panel2)}
   .comptitle{font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:8px}
-  .compdivider{margin:18px 0 4px; font-size:13px; font-weight:700; color:var(--ink); border-top:1px solid var(--line); padding-top:14px}
   .subtabs{display:flex; gap:6px; margin:2px 0 12px}
   .subtabs button{font:inherit; font-size:12px; font-weight:600; padding:6px 12px; border:1px solid var(--line); background:var(--panel2); border-radius:7px; cursor:pointer; color:var(--muted)}
   .subtabs button.on{background:var(--accent); color:#06222e; border-color:var(--accent)}
@@ -123,6 +128,7 @@
   .scrollbody{max-height:540px; overflow-y:auto}
   .count{font-size:12px;color:var(--muted2)}
   .empty{padding:40px; text-align:center; color:var(--muted2)}
+  @media(max-width:700px){ .compwrap{grid-template-columns:1fr} }
   footer{margin-top:34px; font-size:11px; color:var(--muted2); border-top:1px solid var(--line); padding-top:14px}
   ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:var(--bg2)} ::-webkit-scrollbar-thumb{background:#2b3947;border-radius:6px}
 </style>
@@ -156,21 +162,22 @@
     </div>
     <div class="panel">
       <h2 id="rpTitle">Ítem seleccionado <span class="accent" id="rpName"></span></h2>
-      <div class="subtabs" id="rpTabs" style="display:none">
+      <div class="subtabs" id="rpTabs">
         <button data-v="proj" class="on">Proyección de agotamiento</button>
         <button data-v="cons">Consumo real</button>
       </div>
       <div id="rpBody"></div>
-      <div id="rpComp">
-        <div class="compdivider" id="compDivider" style="display:none">Composición de productos</div>
-        <p class="hint" style="margin-top:0">Distribución de los ítems filtrados. Clic en un segmento o leyenda para filtrar.</p>
-        <div class="compwrap">
-          <div class="compblock"><div class="comptitle">Descripción del producto</div>
-            <div class="donutwrap"><div class="donut"><svg id="donutDP" viewBox="0 0 120 120"></svg></div><div class="legend" id="legDP"></div></div></div>
-          <div class="compblock"><div class="comptitle">Tipo de producto</div>
-            <div class="donutwrap"><div class="donut"><svg id="donutTPR" viewBox="0 0 120 120"></svg></div><div class="legend" id="legTPR"></div></div></div>
-        </div>
-      </div>
+    </div>
+  </div>
+
+  <div class="panel full" style="margin-bottom:20px">
+    <h2>Composición de productos</h2>
+    <p class="hint">Distribución de los registros filtrados. Clic en un segmento o leyenda para filtrar.</p>
+    <div class="compwrap">
+      <div class="compblock"><div class="comptitle">Descripción del producto</div>
+        <div class="donutwrap"><div class="donut"><svg id="donutDP" viewBox="0 0 120 120"></svg></div><div class="legend" id="legDP"></div></div></div>
+      <div class="compblock"><div class="comptitle">Tipo de producto</div>
+        <div class="donutwrap"><div class="donut"><svg id="donutTPR" viewBox="0 0 120 120"></svg></div><div class="legend" id="legTPR"></div></div></div>
     </div>
   </div>
 
@@ -275,7 +282,7 @@ function buildControls(){
   si.addEventListener('input',function(){FILT.q=this.value.toLowerCase(); render();});
   sd.appendChild(si); c.appendChild(sd);
   var rb=document.createElement('button'); rb.className='resetbtn'; rb.textContent='Limpiar'; 
-  rb.addEventListener('click',function(){for(var k in FILT)FILT[k]=''; hideInd={}; selRow=null; buildControls(); render();});
+  rb.addEventListener('click',function(){for(var k in FILT)FILT[k]=''; hideInd={}; selRow=null; rpView='proj'; buildControls(); render();});
   c.appendChild(rb);
 }
 
@@ -290,9 +297,20 @@ function applyFilters(){
 function render(){
   buildControls();
   var rows=applyFilters();
+  if(selRow && rows.indexOf(selRow)<0){
+    selRow=null;
+    rpView='proj';
+  }
   renderKPIs(rows); renderDonut(rows); renderDimFilters(); renderDim(rows); renderTable(rows); renderFoot(rows);
   renderComposition(rows);
   if(selRow) renderRightPanel(selRow);
+  else if(HAS_QTY){
+    renderOverviewPanel(rows);
+  } else {
+    document.getElementById('rpName').textContent='';
+    document.getElementById('rpTabs').style.display='none';
+    document.getElementById('rpBody').innerHTML='';
+  }
 }
 
 function countByInd(rows){var m={}; IND_ORDER.forEach(function(i){m[i]=0;}); rows.forEach(function(r){if(m[r.i]==null)m[r.i]=0; m[r.i]++;}); return m;}
@@ -340,7 +358,7 @@ function renderDonut(rows){
   var t1=document.createElementNS('http://www.w3.org/2000/svg','text');
   t1.setAttribute('x',60);t1.setAttribute('y',58);t1.setAttribute('text-anchor','middle');t1.setAttribute('font-size','19');t1.setAttribute('font-weight','700');t1.setAttribute('fill','#e6ecf2');t1.textContent=fint(totShown);svg.appendChild(t1);
   var t2=document.createElementNS('http://www.w3.org/2000/svg','text');
-  t2.setAttribute('x',60);t2.setAttribute('y',72);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','7');t2.setAttribute('fill','#8a99a8');t2.textContent='registros';svg.appendChild(t2);
+  t2.setAttribute('x',60);t2.setAttribute('y',72);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','7');t2.setAttribute('fill','#8a99a8');t2.textContent='Registros';svg.appendChild(t2);
   var lg=document.getElementById('donutlegend'); lg.innerHTML='';
   IND_ORDER.forEach(function(ind){var v=m[ind]||0; if(v===0&&!hideInd[ind])return;
     var el=document.createElement('div'); el.className='li'+(hideInd[ind]?' off':'');
@@ -350,19 +368,100 @@ function renderDonut(rows){
 }
 
 /* ---- RIGHT PANEL ---- */
-document.getElementById('rpTabs').addEventListener('click',function(e){var b=e.target.closest('button'); if(!b)return; rpView=b.dataset.v; this.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);}); if(selRow)renderRightPanel(selRow);});
+document.getElementById('rpTabs').addEventListener('click',function(e){
+  var b=e.target.closest('button'); if(!b)return;
+  rpView=b.dataset.v;
+  this.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});
+  if(selRow)renderRightPanel(selRow);
+  else if(HAS_QTY)renderOverviewPanel(applyFilters());
+});
 
 function renderRightPanel(r){
   document.getElementById('rpName').textContent='· '+(r.p||'');
   document.getElementById('rpTabs').style.display='flex';
-  var dv=document.getElementById('compDivider'); if(dv)dv.style.display='block';
+  document.querySelectorAll('#rpTabs button').forEach(function(b){b.classList.toggle('on',b.dataset.v===rpView);});
   var body=document.getElementById('rpBody');
-  var svgId='rpChart';
   var chart = rpView==='proj' ? projSVG(r) : consSVG(r);
   var chips='<div class="chips">'+
     chip('Código',r.cod)+chip('Stock farmacia',fint(r.st))+chip('Stock almacén',fint(r.sar))+
     chip('CPMA/mes',fint(r.cp))+chip('Meses disp. (MED)',r.md==null?'—':r.md.toFixed(1))+chip('Precio S/',r.pr==null?'—':r.pr.toFixed(2))+'</div>';
   body.innerHTML=chart+chips+diagHTML(r);
+}
+function renderOverviewPanel(rows){
+  var isProjection=rpView==='proj';
+  document.getElementById('rpName').textContent=isProjection
+    ? '· Proyección general de los registros filtrados'
+    : '· Consumo real por producto (registros filtrados)';
+  document.getElementById('rpTabs').style.display='flex';
+  document.querySelectorAll('#rpTabs button').forEach(function(b){b.classList.toggle('on',b.dataset.v===rpView);});
+  document.getElementById('rpBody').innerHTML=isProjection
+    ? allProjectionHTML(rows)
+    : allConsumptionHTML(rows);
+}
+function allProjectionHTML(rows){
+  if(!rows.length) return '<div class="rp-empty">No hay registros que coincidan con los filtros.</div>';
+  var covered=rows.filter(function(r){return r.md!=null&&isFinite(r.md)&&r.md>=0;});
+  var unprojectable=rows.length-covered.length;
+  var W=640,H=280,mL=52,mR=20,mT=20,mB=48,pw=W-mL-mR,ph=H-mT-mB;
+  var maxCount=Math.max(1,covered.length);
+  function X(month){return mL+month/12*pw;}
+  function Y(count){return mT+(1-count/maxCount)*ph;}
+  var inner='';
+  for(var i=0;i<=4;i++){
+    var count=Math.round(maxCount*i/4), y=Y(count);
+    inner+=svgEl('line',{x1:mL,y1:y,x2:W-mR,y2:y,stroke:'#25313f','stroke-width':1});
+    inner+='<text x="'+(mL-8)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#8a99a8">'+fint(count)+'</text>';
+  }
+  inner+='<text transform="translate(13 '+(mT+ph/2)+') rotate(-90)" text-anchor="middle" font-size="10" fill="#8a99a8">Cantidad de registros</text>';
+  for(var month=0;month<=12;month+=3){
+    inner+='<text x="'+X(month)+'" y="'+(H-mB+18)+'" text-anchor="middle" font-size="10" fill="#8a99a8">'+month+'</text>';
+  }
+  var points=[];
+  for(var month=0;month<=12;month++){
+    var remaining=covered.filter(function(r){return r.md>month;}).length;
+    points.push({month:month,count:remaining});
+  }
+  var path=points.map(function(p,i){return (i?'L':'M')+X(p.month).toFixed(1)+' '+Y(p.count).toFixed(1);}).join(' ');
+  inner+='<path d="'+path+' L'+X(12)+' '+Y(0)+' L'+X(0)+' '+Y(0)+' Z" fill="'+gv('--accent')+'" fill-opacity="0.14"/>';
+  inner+='<path d="'+path+'" fill="none" stroke="'+gv('--accent')+'" stroke-width="2.5"/>';
+  points.forEach(function(p){
+    inner+='<circle cx="'+X(p.month)+'" cy="'+Y(p.count)+'" r="3" fill="'+gv('--accent')+'"><title>Mes '+p.month+': '+fint(p.count)+' registros con cobertura</title></circle>';
+  });
+  inner+='<text x="'+(mL+pw/2)+'" y="'+(H-5)+'" text-anchor="middle" font-size="10" fill="#5f6f7e">Meses desde hoy (0, 3, 6, 9 y 12) · cantidad de registros con cobertura estimada (MED)</text>';
+  return chartFrame(inner)+
+    '<p class="hint">Incluye '+fint(covered.length)+' registros con MED disponible; '+fint(unprojectable)+' sin MED para proyectar. Se cuentan registros por separado, sin sumar unidades de productos distintos.</p>';
+}
+function allConsumptionHTML(rows){
+  var groups={};
+  rows.forEach(function(r){
+    var key=r.cod||r.p||'(sin producto)';
+    if(!groups[key]) groups[key]={name:r.p||'(sin producto)',code:r.cod||'',total:0,count:0};
+    if(r.c12!=null&&isFinite(r.c12)){groups[key].total+=r.c12;groups[key].count++;}
+  });
+  var products=Object.keys(groups).map(function(key){return groups[key];})
+    .filter(function(item){return item.count>0;})
+    .sort(function(a,b){return b.total-a.total;});
+  if(!products.length) return '<div class="rp-empty">No hay consumo acumulado de 12 meses en los registros filtrados.</div>';
+  var W=640,rowH=25,H=96+products.length*rowH,mL=252,mR=48,mT=24,mB=46,pw=W-mL-mR;
+  var maxValue=Math.max(1,Math.max.apply(null,products.map(function(item){return item.total;})));
+  function esc(value){return (''+value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  var inner='';
+  for(var tick=0;tick<=4;tick++){
+    var value=maxValue*tick/4,x=mL+pw*tick/4;
+    inner+=svgEl('line',{x1:x,y1:mT,x2:x,y2:H-mB,stroke:'#25313f','stroke-width':1});
+    inner+='<text x="'+x+'" y="'+(H-mB+17)+'" text-anchor="middle" font-size="10" fill="#8a99a8">'+fint(value)+'</text>';
+  }
+  products.forEach(function(item,index){
+    var y=mT+index*rowH+3,barY=y+2,barW=item.total/maxValue*pw;
+    var productLabel=(item.code?item.code+' · ':'')+item.name;
+    inner+='<text x="'+(mL-9)+'" y="'+(y+12)+'" text-anchor="end" font-size="9.5" fill="#e6ecf2"><title>'+esc(productLabel)+'</title>'+esc(productLabel.length>42?productLabel.slice(0,41)+'…':productLabel)+'</text>';
+    inner+=svgEl('rect',{x:mL,y:barY,width:Math.max(barW,1),height:15,rx:3,fill:gv('--accent')});
+    inner+='<text x="'+(mL+barW+5)+'" y="'+(barY+12)+'" font-size="9.5" font-weight="700" fill="#e6ecf2">'+fint(item.total)+'</text>';
+  });
+  inner+='<text transform="translate(15 '+(mT+products.length*rowH/2)+') rotate(-90)" text-anchor="middle" font-size="10" fill="#8a99a8">Productos</text>';
+  inner+='<text x="'+(mL+pw/2)+'" y="'+(H-5)+'" text-anchor="middle" font-size="10" fill="#5f6f7e">Cantidad consumida acumulada en 12 meses (agrupada por producto)</text>';
+  return '<div class="consumption-scroll" tabindex="0" aria-label="Consumo real por producto; desplácese para ver todos los productos"><svg id="rpChart" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">'+inner+'</svg></div>'+
+    '<p class="hint">Se muestran los '+products.length+' productos con consumo acumulado reportado. Desplácese dentro del gráfico para recorrer la lista completa.</p>';
 }
 function chip(l,v){return '<div class="chip">'+l+'<b>'+(v==null||v==='—'?'—':v)+'</b></div>';}
 
@@ -380,6 +479,7 @@ function diagHTML(r){
 
 function chartFrame(inner){return '<svg id="rpChart" viewBox="0 0 640 280" style="width:100%;height:auto">'+inner+'</svg>';}
 function svgEl(tag,a){var s='<'+tag; for(var k in a)s+=' '+k+'="'+a[k]+'"'; return s+'></'+tag+'>';}
+function gv(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
 
 function projSVG(r){
   var st=(r.st!=null?r.st:0), cp=(r.cp!=null?r.cp:0), med=r.md;
@@ -393,6 +493,7 @@ function projSVG(r){
     inner+=svgEl('line',{x1:mL,y1:yy,x2:W-mR,y2:yy,stroke:'#25313f','stroke-width':1});
     inner+='<text x="'+(mL-7)+'" y="'+(yy+4)+'" text-anchor="end" font-size="10" fill="#8a99a8">'+Math.round(yv)+'</text>';}
   for(var mo=0;mo<=horizon;mo++)inner+='<text x="'+X(mo)+'" y="'+(H-mB+16)+'" text-anchor="middle" font-size="10" fill="#8a99a8">'+mo+'</text>';
+  inner+='<text transform="translate(12 '+(mT+ph/2)+') rotate(-90)" text-anchor="middle" font-size="10" fill="#8a99a8">Cantidad en stock</text>';
   inner+='<text x="'+(mL+pw/2)+'" y="'+(H-4)+'" text-anchor="middle" font-size="10.5" fill="#5f6f7e">meses desde hoy · proyección a consumo constante (CPMA)</text>';
   inner+=svgEl('line',{x1:mL,y1:zeroY,x2:W-mR,y2:zeroY,stroke:'#3a4b5c','stroke-width':1.5});
   var col=(med!=null&&med<=3)?gv('--desab'):(med!=null&&med<=6?gv('--sub'):gv('--normo'));
@@ -421,6 +522,7 @@ function consSVG(r){
   for(var i=0;i<=4;i++){var yv=ymax*i/4,yy=Y(yv);
     inner+=svgEl('line',{x1:mL,y1:yy,x2:W-mR,y2:yy,stroke:'#25313f','stroke-width':1});
     inner+='<text x="'+(mL-7)+'" y="'+(yy+4)+'" text-anchor="end" font-size="10" fill="#8a99a8">'+Math.round(yv)+'</text>';}
+  inner+='<text transform="translate(12 '+(mT+ph/2)+') rotate(-90)" text-anchor="middle" font-size="10" fill="#8a99a8">Cantidad reportada</text>';
   var n=series.length, bw=pw/n*0.55, gap=pw/n;
   series.forEach(function(s,i){var cx=mL+gap*i+gap/2, x=cx-bw/2, y=Y(s.v), hh=Y(0)-y;
     inner+=svgEl('rect',{x:x,y:y,width:bw,height:Math.max(hh,0),rx:4,fill:s.color,'fill-opacity':s.na?0.25:0.9});
@@ -686,7 +788,6 @@ document.getElementById('file').addEventListener('change',function(ev){
     for(var k in FILT)FILT[k]=''; hideInd={}; selRow=null;
     document.getElementById('rpTabs').style.display='none';
     document.getElementById('rpBody').innerHTML='';
-    var dv0=document.getElementById('compDivider'); if(dv0)dv0.style.display='none';
     document.getElementById('rpName').textContent='';
     applyQtyMode();
     buildControls(); render();
@@ -701,7 +802,6 @@ function applyQtyMode(){
   if(!HAS_QTY){
     document.getElementById('rpTabs').style.display='none';
     document.getElementById('rpBody').innerHTML='';
-    var dv=document.getElementById('compDivider'); if(dv)dv.style.display='none';
   }
 }
 
@@ -733,7 +833,7 @@ function drawCompDonut(svgId,legId,counts,order,colorMap,filterKey){
   var t1=document.createElementNS('http://www.w3.org/2000/svg','text');
   t1.setAttribute('x',60);t1.setAttribute('y',58);t1.setAttribute('text-anchor','middle');t1.setAttribute('font-size','19');t1.setAttribute('font-weight','700');t1.setAttribute('fill','#e6ecf2');t1.textContent=fint(tot);svg.appendChild(t1);
   var t2=document.createElementNS('http://www.w3.org/2000/svg','text');
-  t2.setAttribute('x',60);t2.setAttribute('y',72);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','7');t2.setAttribute('fill','#8a99a8');t2.textContent='ítems';svg.appendChild(t2);
+  t2.setAttribute('x',60);t2.setAttribute('y',72);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','7');t2.setAttribute('fill','#8a99a8');t2.textContent='Registros';svg.appendChild(t2);
   keys.forEach(function(k,i){
     var v=counts[k], col=colorFor(colorMap,k,i);
     var el=document.createElement('div'); el.className='li'+(FILT[filterKey]&&FILT[filterKey]!==k?' off':'');
