@@ -6,19 +6,19 @@
 <title>SIGMED · DPCAN — Prevención de cáncer</title>
 <style>
   :root{
-    --bg:#0f1720; --bg2:#141d28; --panel:#1a2432; --panel2:#141c27;
-    --line:#25313f; --ink:#e6ecf2; --muted:#8a99a8; --muted2:#5f6f7e;
-    --accent:#38bdf8; --accent2:#7dd3fc;
+    --bg:#edf1f3; --bg2:#f4f7f8; --panel:#ffffff; --panel2:#f5f8fa;
+    --line:#d9e4e9; --ink:#263b49; --muted:#516879; --muted2:#728593;
+    --accent:#147fa2; --accent2:#e7f2f6;
     --desab:#ef4444; --sub:#c4b5fd; --normo:#22c55e; --sobre:#38bdf8;
     --sincon:#8b5cf6; --sinrot:#f59e0b; --alma:#64748b; --noap:#475569;
     --pos:#22c55e; --neg:#ef4444;
-    --shadow:0 1px 0 rgba(255,255,255,.02), 0 12px 30px -18px rgba(0,0,0,.8);
+    --shadow:0 8px 22px rgba(35,72,91,.055);
   }
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0; background:var(--bg); color:var(--ink);
     font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; line-height:1.45; font-size:14px}
-  .wrap{max-width:1280px; margin:0 auto; padding:22px 20px 70px}
+  .wrap{max-width:1600px; margin:22px auto; padding:0 40px 54px; background:var(--panel); border-radius:18px; box-shadow:0 12px 40px rgba(35,72,91,.07)}
   header.top{display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 24px; border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:20px}
   .brand h1{font-size:23px; margin:0; font-weight:700; letter-spacing:.2px}
   .brand .sub{font-size:12.5px; color:var(--muted); margin-top:4px; display:block}
@@ -131,14 +131,91 @@
   @media(max-width:700px){ .compwrap{grid-template-columns:1fr} }
   footer{margin-top:34px; font-size:11px; color:var(--muted2); border-top:1px solid var(--line); padding-top:14px}
   ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:var(--bg2)} ::-webkit-scrollbar-thumb{background:#2b3947;border-radius:6px}
+  .topbar{min-height:58px; display:flex; align-items:center; gap:18px; margin:0 -40px; padding:10px 40px; background:var(--accent); color:#fff; border-radius:18px 18px 0 0}
+  .topbar .observatory{padding:7px 20px; border-radius:999px; background:#fff; color:var(--accent); font-size:10px; font-weight:800; letter-spacing:2px}
+  .topbar .divider{height:30px; width:1px; background:rgba(255,255,255,.45)}
+  .topbar .logo{font-size:21px; font-weight:850; letter-spacing:.4px}
+  .topbar .agency{font-size:10px; font-weight:750; line-height:1.25; letter-spacing:.35px}
+  .topbar .edition{margin-left:auto; font-size:10px; font-weight:800; letter-spacing:1.1px}
+  header.top{align-items:center; gap:24px; padding:40px 0 30px; margin-bottom:6px; border:0}
+  .brand{flex:1 1 480px}
+  .brand h1{max-width:850px; color:#515b61; font-size:clamp(30px,4vw,46px); line-height:1.08; letter-spacing:-1.7px}
+  .brand .sub{max-width:620px; margin-top:15px; color:var(--muted); font-size:13px}
+  .brand .sub:after{content:""; display:block; width:88px; height:5px; margin-top:18px; border-radius:6px; background:var(--accent)}
+  .brand .tag{margin-top:13px; padding:5px 11px; color:var(--accent); background:var(--accent2)}
+  .uploadbox{flex:0 1 520px; margin-left:auto; padding:18px 20px; color:var(--muted); text-align:left; border:1.5px solid #c5dce6; border-radius:13px; background:#fff}
+  .uploadbox:before{content:"FUENTE DE DATOS"; display:block; margin-bottom:9px; color:var(--ink); font-size:10px; font-weight:800; letter-spacing:1.1px}
+  .uploadbox label{padding:9px 18px; border-radius:999px; color:#fff; background:var(--accent); font-size:11px; letter-spacing:.3px}
+  .uploadbox label:hover{background:#0e6c8b}
+  .uploadbox .fn{margin-top:9px; color:var(--muted2); font-style:normal; line-height:1.5; overflow-wrap:anywhere}
+  .uploadbox input{display:none}
+  .filterheading{margin:5px 0 10px; color:var(--ink); font-size:10px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase}
+  .controls{gap:11px; margin-bottom:22px}
+  .field label{color:var(--muted); font-size:10px; font-weight:800; letter-spacing:.75px}
+  .field select,.field input[type=search]{min-height:42px; padding:9px 13px; border:1.5px solid var(--line); border-radius:12px; background:#fff}
+  .field select:focus,.field input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(20,127,162,.1)}
+  .resetbtn{min-height:42px; padding:9px 16px; border:1.5px solid var(--accent); border-radius:999px; background:#fff; color:var(--accent); font-size:10px; font-weight:800; letter-spacing:.45px}
+  .resetbtn:hover{background:var(--accent); color:#fff}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:26px}
+  .kpi{padding:17px 18px; border:0; border-left:0!important; border-radius:14px; background:#e7f1f5; box-shadow:none}
+  .kpi .n{color:var(--accent); font-size:29px; font-weight:800}
+  .kpi .l{margin-top:8px; color:var(--ink); font-size:10px; font-weight:750; letter-spacing:.45px; text-transform:uppercase}
+  .kpi.crit{background:#fdebf0}.kpi.crit .n{color:#cb3264}
+  .kpi.warn{background:#f1eef9}
+  .kpi.ok{background:#e9f5ef}
+  .kpi.over{background:#e8f3f8}
+  .kpi.med,.kpi.ins{background:#e7f1f5}
+  .kpi.med .n,.kpi.ins .n{color:#1683a6}
+  .panel{padding:20px 22px; border-color:#e5ecef; border-radius:15px}
+  .panel h2{color:var(--ink); font-weight:750}
+  .compblock{padding:14px 16px; border-radius:12px; background:#f8fafb}
+  .subtabs button{padding:7px 13px; border-radius:999px; background:#fff; font-size:11px; font-weight:700}
+  .subtabs button.on,.tabs button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .dimfilters button{padding:6px 12px; border-radius:20px; background:#fff; font-size:11px}
+  .dimfilters button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .chip{padding:7px 12px; border-radius:9px; background:#f0f6f8}
+  .chip b{color:var(--accent)}
+  .bartrack{border-radius:7px; background:#f4f7f8}
+  .tabs button{padding:8px 14px; border-radius:999px; background:#fff; font-size:12px}
+  thead th{background:#f0f6f8; font-size:10px; letter-spacing:.6px}
+  tbody tr.sel td{background:#e8f3f8}
+  svg line[stroke="#25313f"]{stroke:#dce6ea}
+  svg line[stroke="#3a4b5c"]{stroke:#aabdc7}
+  svg text[fill="#e6ecf2"]{fill:var(--ink)!important}
+  svg text[fill="#8a99a8"]{fill:var(--muted)!important}
+  svg text[fill="#5f6f7e"]{fill:var(--muted2)!important}
+  svg circle[stroke="#0f1720"]{stroke:#fff}
+  footer{margin-top:30px; padding-top:16px}
+  ::-webkit-scrollbar-thumb{background:#c6d4da}
+  @media(max-width:700px){
+    .wrap{margin:0 auto; padding:0 16px 32px; border-radius:0}
+    .topbar{margin:0 -16px; padding:9px 16px; gap:10px; border-radius:0}
+    .topbar .observatory{padding:6px 10px; letter-spacing:1px}
+    .topbar .agency{display:none}
+    .topbar .edition{font-size:8px; letter-spacing:.5px}
+    header.top{padding:28px 0 22px; gap:18px}
+    .brand h1{letter-spacing:-1px}
+    .uploadbox{flex-basis:100%; margin:0}
+    .row2{gap:12px}
+    .panel{padding:15px}
+    .barrow{grid-template-columns:minmax(85px,110px) 1fr auto; gap:7px}
+    .tabs{flex-wrap:wrap}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="topbar">
+    <span class="observatory">OBSERVATORIO</span>
+    <span class="divider"></span>
+    <span class="logo">DPCAN</span>
+    <span class="agency">DIRECCIÓN DE PREVENCIÓN<br>Y CONTROL DEL CÁNCER</span>
+    <span class="edition">SEGUIMIENTO DE STOCK</span>
+  </div>
   <header class="top">
     <div class="brand">
-      <h1>SIGMED · DPCAN</h1>
-      <span class="sub">Disponibilidad de productos de prevención de cáncer — situación de stock, consumo y proyección de agotamiento</span>
+      <h1>Disponibilidad de productos de prevención de cáncer</h1>
+      <span class="sub">Consulte la situación de stock, consumo y proyección de agotamiento en establecimientos de salud.</span>
       <span class="tag">PREVENCIÓN DE CÁNCER · datos compartidos y guardados en Neon</span>
     </div>
     <div class="uploadbox">
@@ -148,6 +225,7 @@
     </div>
   </header>
 
+  <div class="filterheading">Filtros</div>
   <div class="controls" id="controls"></div>
   <div class="kpis" id="kpis"></div>
 
