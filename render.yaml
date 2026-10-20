@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: sigmetas
+    runtime: node
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_WRITE_KEY
+        sync: false

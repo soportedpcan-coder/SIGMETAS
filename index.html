@@ -139,12 +139,12 @@
     <div class="brand">
       <h1>SIGMED · DPCAN</h1>
       <span class="sub">Disponibilidad de productos de prevención de cáncer — situación de stock, consumo y proyección de agotamiento</span>
-      <span class="tag">Solo PREVENCIÓN DE CÁNCER · análisis local · sin envío de datos</span>
+      <span class="tag">PREVENCIÓN DE CÁNCER · datos compartidos y guardados en Neon</span>
     </div>
     <div class="uploadbox">
       <label for="file">Cargar otro Excel</label>
       <input type="file" id="file" accept=".xlsx,.xls">
-      <span class="fn" id="fname">Precargado: DATA 10092026xlsx.xlsx (último reporte: 30/09/2026)</span>
+      <span class="fn" id="fname">Conectando con el repositorio compartido…</span>
     </div>
   </header>
 
@@ -737,16 +737,81 @@ function renderFoot(rows){
   var nD=uniq(rows.map(function(r){return r.d;})).length,nE=uniq(rows.map(function(r){return r.e;})).length,nP=uniq(rows.map(function(r){return r.p;})).length;
   f.innerHTML='Filtro activo: <b>'+fint(rows.length)+'</b> ítems · '+nD+' DIRESA · '+nE+' IPRESS · '+nP+' productos. Dataset: '+fint(DATA.length)+' registros (solo PREVENCIÓN DE CÁNCER).<br>'+
     (HAS_QTY
-      ? 'La proyección de agotamiento asume consumo constante = CPMA; MED = meses de disponibilidad (del reporte o stock÷CPMA). La tendencia se calcula sobre stock actual vs. mes anterior. Procesamiento 100% local.'
-      : 'Fuente: MAESTRO con clasificación oficial (Descripción producto y Tipo de producto). Este archivo no incluye columnas de stock/CPMA, por lo que no se muestra proyección de agotamiento, MED ni tendencia; para esos análisis, cargue un Excel que incluya STOCK y CPMA. Procesamiento 100% local.');
+      ? 'La proyección de agotamiento asume consumo constante = CPMA; MED = meses de disponibilidad (del reporte o stock÷CPMA). La tendencia se calcula sobre stock actual vs. mes anterior. Los datos se comparten desde el servidor.'
+      : 'Fuente: MAESTRO con clasificación oficial (Descripción producto y Tipo de producto). Este archivo no incluye columnas de stock/CPMA, por lo que no se muestra proyección de agotamiento, MED ni tendencia; para esos análisis, cargue un Excel que incluya STOCK y CPMA. Los datos se comparten desde el servidor.');
+}
+
+function setSyncStatus(message){
+  document.getElementById('fname').textContent=message;
+}
+
+function formatUpdatedAt(value){
+  var date=new Date(value);
+  return isNaN(date.getTime())?'fecha no disponible':date.toLocaleString('es-PE');
+}
+
+function loadSharedDataset(){
+  return fetch('/api/data',{cache:'no-store'})
+    .then(function(response){
+      if(!response.ok)throw new Error('El servidor respondió HTTP '+response.status+'.');
+      return response.json();
+    })
+    .then(function(saved){
+      if(!Array.isArray(saved.records)||!saved.records.length)throw new Error('El servidor no devolvió registros válidos.');
+      DATA=saved.records.map(normalizeIndicator);
+      HAS_QTY=!!saved.hasQty;
+      setSyncStatus('Datos compartidos · '+(saved.sourceName||'Excel guardado')+' · actualización: '+formatUpdatedAt(saved.updatedAt));
+    })
+    .catch(function(error){
+      console.error('No fue posible cargar los datos guardados:',error);
+      setSyncStatus('Sin conexión con Neon; se muestran los datos incluidos en la página y las cargas no se guardarán.');
+    });
+}
+
+function saveSharedDataset(records,hasQty,sourceName){
+  var key=window.prompt('Ingrese la clave de responsable para guardar este Excel en Neon:');
+  if(!key){
+    setSyncStatus('Carga cancelada; los datos compartidos no fueron modificados.');
+    return Promise.resolve(false);
+  }
+  setSyncStatus('Guardando '+records.length.toLocaleString('es-PE')+' registros en Neon…');
+  return fetch('/api/data',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-Admin-Key':key},
+    body:JSON.stringify({records:records,hasQty:hasQty,sourceName:sourceName})
+  })
+    .then(function(response){
+      if(response.status===401)throw new Error('Clave de responsable incorrecta.');
+      if(!response.ok)throw new Error('El servidor respondió HTTP '+response.status+'.');
+      return response.json();
+    })
+    .then(function(saved){
+      DATA=records;
+      HAS_QTY=hasQty;
+      for(var k in FILT)FILT[k]='';
+      hideInd={}; selRow=null; rpView='proj';
+      document.getElementById('rpTabs').style.display='';
+      document.getElementById('rpBody').innerHTML='';
+      document.getElementById('rpName').textContent='';
+      applyQtyMode(); buildControls(); render();
+      setSyncStatus('Guardado en Neon · '+sourceName+' · actualización: '+formatUpdatedAt(saved.updatedAt));
+      return true;
+    })
+    .catch(function(error){
+      console.error('No fue posible guardar los datos en Neon:',error);
+      setSyncStatus('No se guardaron los cambios: '+error.message);
+      window.alert('No se modificaron los datos compartidos. '+error.message+' Puede volver a intentar cargar el Excel.');
+      return false;
+    });
 }
 
 /* upload */
 document.getElementById('file').addEventListener('change',function(ev){
   var file=ev.target.files[0]; if(!file)return;
-  document.getElementById('fname').textContent=file.name;
+  setSyncStatus('Leyendo '+file.name+'…');
   var rd=new FileReader();
   rd.onload=function(e){
+    try{
     var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
     var sn=wb.SheetNames.find(function(n){return n.toUpperCase().replace(/\s/g,'')==='DATA';})
           ||wb.SheetNames.find(function(n){return n.toUpperCase().indexOf('DPCAN')>=0;})
@@ -758,7 +823,7 @@ document.getElementById('file').addEventListener('change',function(ev){
       arr=arr.filter(function(o){return (''+(o['LISTA DE PRODUCTOS']||'')).trim().toUpperCase()==='PREVENCION DE CANCER';});
     }
     // detect whether quantitative columns are present
-    HAS_QTY = arr.length>0 && ('STOCK' in arr[0]) && (('CPMA_SIN_DECIMALES' in arr[0])||('CPMA' in arr[0]));
+    var nextHasQty = arr.length>0 && ('STOCK' in arr[0]) && (('CPMA_SIN_DECIMALES' in arr[0])||('CPMA' in arr[0]));
     function nf(v){if(typeof v==='number')return v; if(typeof v==='string'){var x=parseFloat(v.replace(',','.')); return isNaN(x)?null:x;} return null;}
     function t(v){return (''+(v==null?'':v)).trim();}
     function rn(v){return v==null?null:Math.round(v*10)/10;}
@@ -773,7 +838,7 @@ document.getElementById('file').addEventListener('change',function(ev){
       var pn=t(o['PNUME.']).toUpperCase();
       return pn==='SI'?'PNUME':(pn==='NO'?'NOPNUME':'');
     }
-    DATA=arr.map(function(o){
+    var nextData=arr.map(function(o){
       var st=nf(o['STOCK']); var cp=nf(o['CPMA_SIN_DECIMALES']); if(cp==null)cp=nf(o['CPMA']); if(cp!=null&&(cp<0||cp>1e6))cp=null;
       var md=nf(o['MED']); if(md!=null&&(md<0||md>=1000))md=(st!=null&&cp&&cp>0)?st/cp:null; else if(md==null&&st!=null&&cp&&cp>0)md=st/cp;
       var codn=nf(o['CODMED___s']);
@@ -785,13 +850,15 @@ document.getElementById('file').addEventListener('change',function(ev){
         cma:rn(nf(o['CONSUMO MES ANTERIOR'])),sa:rn(nf(o['STOCK_MES_ANTERIOR'])),cu4:rn(nf(o['CU4M'])),
         sar:rn(nf(o['STOCK ALMACENES REGION'])),pr:(function(x){return x==null?null:Math.round(x*100)/100;})(nf(o['PRECIO'])),req:rn(nf(o['Req_3M']))});
     }).filter(function(x){return x.i!=='';});
-    for(var k in FILT)FILT[k]=''; hideInd={}; selRow=null;
-    document.getElementById('rpTabs').style.display='none';
-    document.getElementById('rpBody').innerHTML='';
-    document.getElementById('rpName').textContent='';
-    applyQtyMode();
-    buildControls(); render();
+    if(!nextData.length)throw new Error('El Excel no contiene registros válidos de PREVENCIÓN DE CÁNCER.');
+    saveSharedDataset(nextData,nextHasQty,file.name);
+    }catch(error){
+      console.error('No fue posible procesar el Excel:',error);
+      setSyncStatus('No se procesó el archivo: '+error.message);
+      window.alert('No se modificaron los datos compartidos. '+error.message);
+    }
   };
+  rd.onerror=function(){setSyncStatus('No se pudo leer el archivo seleccionado.');window.alert('No se pudo leer el archivo seleccionado.');};
   rd.readAsArrayBuffer(file);
 });
 
@@ -852,7 +919,7 @@ function renderComposition(rows){
   drawCompDonut('donutTPR','legTPR',tpr,tprOrder,COMP_COLORS_TPR,'tpr');
 }
 
-applyQtyMode(); buildControls(); render();
+loadSharedDataset().then(function(){applyQtyMode(); buildControls(); render();});
 </script>
 </body>
 </html>
