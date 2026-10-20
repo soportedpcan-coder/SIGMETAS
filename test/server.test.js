@@ -4,7 +4,14 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { createServer, extractInitialDataset, validAdminKey, validateRecords } = require('../server');
+const {
+  createServer,
+  extractInitialDataset,
+  hashUploadPassword,
+  initializeDatabase,
+  validateRecords,
+  verifyUploadPassword
+} = require('../server');
 
 test('el código JavaScript del tablero tiene sintaxis válida', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -25,13 +32,38 @@ test('rechaza filas con campos desconocidos y datos no finitos', () => {
   assert.throws(() => validateRecords([{ st: Number.POSITIVE_INFINITY }]), /debe ser finito/);
 });
 
-test('la clave de escritura solo se acepta si coincide exactamente', () => {
-  assert.equal(validAdminKey('clave-administrador-supersegura-32', 'clave-administrador-supersegura-32'), true);
-  assert.equal(validAdminKey('clave-incorrecta', 'clave-administrador-supersegura-32'), false);
-  assert.equal(validAdminKey(undefined, 'clave-administrador-supersegura-32'), false);
+test('la contraseña se guarda como hash scrypt con sal y se verifica correctamente', async () => {
+  const credential = await hashUploadPassword('DPCAN_SUPORT');
+  assert.match(credential.salt, /^[a-f0-9]{32}$/);
+  assert.match(credential.hash, /^[a-f0-9]{128}$/);
+  assert.equal(await verifyUploadPassword('DPCAN_SUPORT', credential.salt, credential.hash), true);
+  assert.equal(await verifyUploadPassword('otra-clave', credential.salt, credential.hash), false);
+  assert.equal(await verifyUploadPassword(undefined, credential.salt, credential.hash), false);
+});
+
+test('Neon recibe solo sal y hash, no la contraseña legible', async () => {
+  const queries = [];
+  const pool = {
+    async query(sql, params) {
+      queries.push({ sql, params });
+      if (sql.includes('SELECT') && sql.includes('sigmetas_dataset')) {
+        throw new Error('La inicialización no debe leer ni sobrescribir los datos existentes.');
+      }
+      return { rows: [] };
+    }
+  };
+  const records = [{ p: 'Producto inicial', i: 'Normostock' }];
+  await initializeDatabase(pool, records, 'DPCAN_SUPORT');
+
+  const credentialInsert = queries.find((query) => query.sql.includes('INSERT INTO sigmetas_admin_credential'));
+  assert.ok(credentialInsert);
+  assert.equal(credentialInsert.params.includes('DPCAN_SUPORT'), false);
+  assert.match(credentialInsert.params[0], /^[a-f0-9]{32}$/);
+  assert.match(credentialInsert.params[1], /^[a-f0-9]{128}$/);
 });
 
 test('la API permite leer datos y solo los reemplaza con la clave correcta', async (context) => {
+  const credential = await hashUploadPassword('DPCAN_SUPORT');
   let dataset = {
     records: [{ p: 'Producto inicial', i: 'Normostock' }],
     has_qty: true,
@@ -41,6 +73,9 @@ test('la API permite leer datos y solo los reemplaza con la clave correcta', asy
   const pool = {
     async query(sql, params) {
       if (sql.includes('SELECT records')) return { rows: [dataset] };
+      if (sql.includes('SELECT password_salt')) {
+        return { rows: [{ password_salt: credential.salt, password_hash: credential.hash }] };
+      }
       if (sql.includes('INSERT INTO sigmetas_dataset')) {
         dataset = {
           records: JSON.parse(params[0]),
@@ -53,7 +88,7 @@ test('la API permite leer datos y solo los reemplaza con la clave correcta', asy
       throw new Error('Consulta inesperada en prueba.');
     }
   };
-  const server = createServer({ pool, adminKey: 'clave-administrador-supersegura-32' });
+  const server = createServer({ pool });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   context.after(() => new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
@@ -67,7 +102,7 @@ test('la API permite leer datos y solo los reemplaza con la clave correcta', asy
 
   const unauthorizedResponse = await fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': 'clave-incorrecta' },
+    headers: { 'Content-Type': 'application/json', 'X-Upload-Password': 'clave-incorrecta' },
     body: JSON.stringify({ records: [{ p: 'No autorizado' }], hasQty: false, sourceName: 'No autorizado' })
   });
   assert.equal(unauthorizedResponse.status, 401);
@@ -75,7 +110,7 @@ test('la API permite leer datos y solo los reemplaza con la clave correcta', asy
 
   const savedResponse = await fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': 'clave-administrador-supersegura-32' },
+    headers: { 'Content-Type': 'application/json', 'X-Upload-Password': 'DPCAN_SUPORT' },
     body: JSON.stringify({ records: [{ p: 'Producto nuevo' }], hasQty: false, sourceName: 'reporte.xlsx' })
   });
   assert.equal(savedResponse.status, 200);
@@ -86,7 +121,6 @@ test('la API permite leer datos y solo los reemplaza con la clave correcta', asy
 test('la API habilita preflight solo para el Static Site de SIGMETAS', async (context) => {
   const server = createServer({
     pool: { async query() { return { rows: [] }; } },
-    adminKey: 'clave-administrador-supersegura-32'
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   context.after(() => new Promise((resolve, reject) => {
@@ -99,12 +133,12 @@ test('la API habilita preflight solo para el Static Site de SIGMETAS', async (co
     headers: {
       Origin: 'https://sigmetas-1.onrender.com',
       'Access-Control-Request-Method': 'PUT',
-      'Access-Control-Request-Headers': 'content-type,x-admin-key'
+      'Access-Control-Request-Headers': 'content-type,x-upload-password'
     }
   });
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://sigmetas-1.onrender.com');
-  assert.match(preflight.headers.get('access-control-allow-headers'), /X-Admin-Key/i);
+  assert.match(preflight.headers.get('access-control-allow-headers'), /X-Upload-Password/i);
 
   const blocked = await fetch(url, {
     method: 'OPTIONS',

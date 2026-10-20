@@ -778,7 +778,7 @@ function saveSharedDataset(records,hasQty,sourceName){
   setSyncStatus('Guardando '+records.length.toLocaleString('es-PE')+' registros en Neon…');
   return fetch(API_BASE+'/api/data',{
     method:'PUT',
-    headers:{'Content-Type':'application/json','X-Admin-Key':key},
+    headers:{'Content-Type':'application/json','X-Upload-Password':key},
     body:JSON.stringify({records:records,hasQty:hasQty,sourceName:sourceName})
   })
     .then(function(response){

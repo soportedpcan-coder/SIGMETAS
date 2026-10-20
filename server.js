@@ -3,13 +3,19 @@
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
-const { timingSafeEqual } = require('node:crypto');
+const { promisify } = require('node:util');
+const { randomBytes, scrypt, timingSafeEqual } = require('node:crypto');
 const { Pool } = require('pg');
 
 const ROOT = __dirname;
 const INDEX_PATH = path.join(ROOT, 'index.html');
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 const MAX_RECORDS = 100000;
+const PASSWORD_HASH_BYTES = 64;
+const MAX_FAILED_ATTEMPTS = 10;
+const FAILED_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const scryptAsync = promisify(scrypt);
+const failedAttempts = new Map();
 const ALLOWED_ORIGINS = new Set([
   'https://sigmetas-1.onrender.com',
   'https://sigmetas-api-dpcan.onrender.com'
@@ -101,14 +107,47 @@ function readJson(request) {
   });
 }
 
-function validAdminKey(candidate, expected) {
-  if (typeof candidate !== 'string' || Buffer.byteLength(candidate) !== Buffer.byteLength(expected)) {
-    return false;
-  }
-  return timingSafeEqual(Buffer.from(candidate), Buffer.from(expected));
+async function hashUploadPassword(password) {
+  const salt = randomBytes(16);
+  const hash = await scryptAsync(password, salt, PASSWORD_HASH_BYTES);
+  return { salt: salt.toString('hex'), hash: hash.toString('hex') };
 }
 
-async function initializeDatabase(pool, initialRecords) {
+async function verifyUploadPassword(password, saltHex, hashHex) {
+  if (typeof password !== 'string' || !/^[a-f0-9]{32}$/i.test(saltHex) ||
+      !/^[a-f0-9]{128}$/i.test(hashHex)) {
+    return false;
+  }
+  const expectedHash = Buffer.from(hashHex, 'hex');
+  const actualHash = await scryptAsync(password, Buffer.from(saltHex, 'hex'), PASSWORD_HASH_BYTES);
+  return timingSafeEqual(actualHash, expectedHash);
+}
+
+function isRateLimited(clientId) {
+  const attempt = failedAttempts.get(clientId);
+  if (!attempt) return false;
+  if (attempt.expiresAt <= Date.now()) {
+    failedAttempts.delete(clientId);
+    return false;
+  }
+  return attempt.count >= MAX_FAILED_ATTEMPTS;
+}
+
+function recordFailedAttempt(clientId) {
+  const now = Date.now();
+  let attempt = failedAttempts.get(clientId);
+  if (!attempt || attempt.expiresAt <= now) {
+    attempt = { count: 0, expiresAt: now + FAILED_ATTEMPT_WINDOW_MS };
+  }
+  attempt.count += 1;
+  failedAttempts.delete(clientId);
+  failedAttempts.set(clientId, attempt);
+  if (failedAttempts.size > 10000) {
+    failedAttempts.delete(failedAttempts.keys().next().value);
+  }
+}
+
+async function initializeDatabase(pool, initialRecords, uploadPassword) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sigmetas_dataset (
       id SMALLINT PRIMARY KEY CHECK (id = 1),
@@ -124,9 +163,27 @@ async function initializeDatabase(pool, initialRecords) {
      ON CONFLICT (id) DO NOTHING`,
     [JSON.stringify(initialRecords), 'Datos base incluidos en SIGMETAS']
   );
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sigmetas_admin_credential (
+      id SMALLINT PRIMARY KEY CHECK (id = 1),
+      password_salt TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  const credential = await hashUploadPassword(uploadPassword);
+  await pool.query(
+    `INSERT INTO sigmetas_admin_credential (id, password_salt, password_hash)
+     VALUES (1, $1, $2)
+     ON CONFLICT (id) DO UPDATE
+     SET password_salt = EXCLUDED.password_salt,
+         password_hash = EXCLUDED.password_hash,
+         updated_at = NOW()`,
+    [credential.salt, credential.hash]
+  );
 }
 
-function createServer({ pool, adminKey }) {
+function createServer({ pool }) {
   return http.createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -137,7 +194,7 @@ function createServer({ pool, adminKey }) {
       response.setHeader('Vary', 'Origin');
       if (request.method === 'OPTIONS') {
         response.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
-        response.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key');
+        response.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Upload-Password');
         response.setHeader('Access-Control-Max-Age', '600');
       }
     }
@@ -186,10 +243,29 @@ function createServer({ pool, adminKey }) {
       }
 
       if (pathname === '/api/data' && request.method === 'PUT') {
-        if (!validAdminKey(request.headers['x-admin-key'], adminKey)) {
-          sendJson(response, 401, { error: 'Se requiere una clave de responsable válida.' });
+        const clientId = request.socket.remoteAddress || 'unknown';
+        if (isRateLimited(clientId)) {
+          sendJson(response, 429, { error: 'Demasiados intentos fallidos. Intente de nuevo en 15 minutos.' });
           return;
         }
+        const credentialResult = await pool.query(
+          'SELECT password_salt, password_hash FROM sigmetas_admin_credential WHERE id = 1'
+        );
+        if (!credentialResult.rows.length) {
+          sendJson(response, 503, { error: 'La clave de responsable aún no está configurada.' });
+          return;
+        }
+        const authorized = await verifyUploadPassword(
+          request.headers['x-upload-password'],
+          credentialResult.rows[0].password_salt,
+          credentialResult.rows[0].password_hash
+        );
+        if (!authorized) {
+          recordFailedAttempt(clientId);
+          sendJson(response, 401, { error: 'Clave de responsable incorrecta.' });
+          return;
+        }
+        failedAttempts.delete(clientId);
         const body = await readJson(request);
         if (!body || typeof body !== 'object' || Array.isArray(body)) {
           sendJson(response, 400, { error: 'El cuerpo de la solicitud no tiene un formato válido.' });
@@ -246,12 +322,12 @@ function createServer({ pool, adminKey }) {
 
 async function start() {
   const connectionString = process.env.DATABASE_URL;
-  const adminKey = process.env.ADMIN_WRITE_KEY;
+  const uploadPassword = process.env.UPLOAD_PASSWORD || process.env.ADMIN_WRITE_KEY;
   if (!connectionString) {
     throw new Error('Falta configurar DATABASE_URL con la cadena de conexión de Neon.');
   }
-  if (!adminKey || Buffer.byteLength(adminKey) < 32) {
-    throw new Error('ADMIN_WRITE_KEY debe configurarse con una clave aleatoria de al menos 32 caracteres.');
+  if (!uploadPassword) {
+    throw new Error('Falta configurar UPLOAD_PASSWORD con la clave de responsable.');
   }
 
   const pool = new Pool({
@@ -260,9 +336,9 @@ async function start() {
     connectionTimeoutMillis: 10000
   });
   const initialRecords = extractInitialDataset(fs.readFileSync(INDEX_PATH, 'utf8'));
-  await initializeDatabase(pool, initialRecords);
+  await initializeDatabase(pool, initialRecords, uploadPassword);
 
-  const server = createServer({ pool, adminKey });
+  const server = createServer({ pool });
   const port = Number(process.env.PORT || 3000);
   server.listen(port, '0.0.0.0', () => {
     console.log(`SIGMETAS disponible en el puerto ${port}.`);
@@ -277,4 +353,11 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, extractInitialDataset, initializeDatabase, validAdminKey, validateRecords };
+module.exports = {
+  createServer,
+  extractInitialDataset,
+  hashUploadPassword,
+  initializeDatabase,
+  validateRecords,
+  verifyUploadPassword
+};
