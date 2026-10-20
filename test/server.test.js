@@ -82,3 +82,33 @@ test('la API permite leer datos y solo los reemplaza con la clave correcta', asy
   assert.equal(dataset.records[0].p, 'Producto nuevo');
   assert.equal(dataset.source_name, 'reporte.xlsx');
 });
+
+test('la API habilita preflight solo para el Static Site de SIGMETAS', async (context) => {
+  const server = createServer({
+    pool: { async query() { return { rows: [] }; } },
+    adminKey: 'clave-administrador-supersegura-32'
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  context.after(() => new Promise((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  }));
+  const url = `http://127.0.0.1:${server.address().port}/api/data`;
+
+  const preflight = await fetch(url, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://sigmetas-1.onrender.com',
+      'Access-Control-Request-Method': 'PUT',
+      'Access-Control-Request-Headers': 'content-type,x-admin-key'
+    }
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://sigmetas-1.onrender.com');
+  assert.match(preflight.headers.get('access-control-allow-headers'), /X-Admin-Key/i);
+
+  const blocked = await fetch(url, {
+    method: 'OPTIONS',
+    headers: { Origin: 'https://untrusted.example' }
+  });
+  assert.equal(blocked.status, 403);
+});

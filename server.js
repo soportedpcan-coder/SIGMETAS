@@ -10,6 +10,10 @@ const ROOT = __dirname;
 const INDEX_PATH = path.join(ROOT, 'index.html');
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 const MAX_RECORDS = 100000;
+const ALLOWED_ORIGINS = new Set([
+  'https://sigmetas-1.onrender.com',
+  'https://sigmetas-api-dpcan.onrender.com'
+]);
 const ALLOWED_FIELDS = new Set([
   'r', 'd', 'e', 't', 'cat', 'p', 's', 'i', 'tp', 'cod', 'ip', 'ie',
   'dp', 'tpr', 'st', 'cp', 'md', 'c12', 'cma', 'sa', 'cu4', 'sar', 'pr', 'req'
@@ -127,6 +131,17 @@ function createServer({ pool, adminKey }) {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+    const origin = request.headers.origin;
+    if (origin && ALLOWED_ORIGINS.has(origin)) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+      response.setHeader('Vary', 'Origin');
+      if (request.method === 'OPTIONS') {
+        response.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+        response.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key');
+        response.setHeader('Access-Control-Max-Age', '600');
+      }
+    }
+
     let pathname;
     try {
       pathname = new URL(request.url, 'http://localhost').pathname;
@@ -136,6 +151,16 @@ function createServer({ pool, adminKey }) {
     }
 
     try {
+      if (pathname === '/api/data' && request.method === 'OPTIONS') {
+        if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+          sendJson(response, 403, { error: 'Este origen no está autorizado.' });
+          return;
+        }
+        response.writeHead(204);
+        response.end();
+        return;
+      }
+
       if (pathname === '/api/health' && request.method === 'GET') {
         await pool.query('SELECT 1');
         sendJson(response, 200, { status: 'ok' });

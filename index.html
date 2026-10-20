@@ -239,6 +239,7 @@ var DATA=RAW.map(normalizeIndicator);
 var FILT={r:'',d:'',e:'',p:'',t:'',cat:'',s:'',i:'',ip:'',ie:'',dp:'',tpr:'',q:''};
 var sortKey='i', sortDir=1, curDim='d', dimView='stack', selRow=null, rpView='proj', hideInd={};
 var HAS_QTY=true; /* MAESTRO precargado incluye stock/CPMA; se recalcula al subir un archivo */
+var API_BASE=window.location.hostname==='sigmetas-1.onrender.com'?'https://sigmetas-api-dpcan.onrender.com':'';
 
 var FILTER_DEFS=[{k:'r',label:'Macroregión'},{k:'d',label:'Región (DIRESA)'},{k:'e',label:'IPRESS'},{k:'p',label:'Producto'},{k:'dp',label:'Descripción producto'},{k:'tpr',label:'Tipo de producto'},{k:'i',label:'Situación'},{k:'ip',label:'Producto infantil'},{k:'ie',label:'Ejecutora infantil'}];
 
@@ -751,7 +752,7 @@ function formatUpdatedAt(value){
 }
 
 function loadSharedDataset(){
-  return fetch('/api/data',{cache:'no-store'})
+  return fetch(API_BASE+'/api/data',{cache:'no-store'})
     .then(function(response){
       if(!response.ok)throw new Error('El servidor respondió HTTP '+response.status+'.');
       return response.json();
@@ -775,7 +776,7 @@ function saveSharedDataset(records,hasQty,sourceName){
     return Promise.resolve(false);
   }
   setSyncStatus('Guardando '+records.length.toLocaleString('es-PE')+' registros en Neon…');
-  return fetch('/api/data',{
+  return fetch(API_BASE+'/api/data',{
     method:'PUT',
     headers:{'Content-Type':'application/json','X-Admin-Key':key},
     body:JSON.stringify({records:records,hasQty:hasQty,sourceName:sourceName})
